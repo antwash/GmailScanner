@@ -22,28 +22,26 @@ fs.readFile(CREDENTIALS_FILE, (error, content) => {
   if (error) {
     return console.log(`ERROR: Couldn't read file ${CREDENTIALS_FILE}.`, error);
   }
-
   // convert content from bytes to JSON
   const credentials = JSON.parse(content);
   authorize_credentials(credentials, getAllEmails);
 });
 
+var oAuthClient;
 function authorize_credentials(credentials, actionFunction) {
   const { client_id, client_secret, redirect_uris } = credentials.installed;
-  const oAuthClient = new google.auth.OAuth2(
+  oAuthClient = new google.auth.OAuth2(
     client_id, client_secret, redirect_uris[0]);
 
     fs.readFile(TOKEN_FILE, (error, token) => {
-      if (error) {
-        return getNewToken(oAuthClient, actionFunction)
-      }
+      if (error) { return getNewToken(actionFunction) }
 
       oAuthClient.setCredentials(JSON.parse(token));
       actionFunction(oAuthClient);
     });
 }
 
-function getNewToken(oAuthClient, actionFunction) {
+function getNewToken(actionFunction) {
   const authURL = oAuthClient.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
@@ -68,20 +66,21 @@ function getNewToken(oAuthClient, actionFunction) {
         if (err) { return console.error(err); } 
       });
 
-      actionFunction(oAuthClient);
+      actionFunction();
     });
   });
 }
 
-function getAllEmails(authorized) {
-  const gMail = google.gmail({version: 'v1', auth: authorized});
+function getAllEmails(pageToken = "") {
+  const gMail = google.gmail({version: 'v1', auth: oAuthClient});
+
   gMail.users.messages.list({
-    userId: USER_ID, labelIds: LABEL_ID,
+    userId: USER_ID, labelIds: LABEL_ID, pageToken,
   }, (error, results) => {
     if (error) {
       return console.log(ERROR_MESSAGE, error);
     }
-
+  
     // Iterate over each message to extract detail information 
     const messages = results.data.messages;
     messages.forEach(message => {
@@ -90,6 +89,10 @@ function getAllEmails(authorized) {
         id: id, userId: USER_ID,
       }, getEmailDetails);
     })
+
+    if (results.data.nextPageToken) { 
+      getAllEmails(results.data.nextPageToken); 
+    }
   });
 }
 
@@ -98,5 +101,14 @@ function getEmailDetails(error, emailDetails) {
     return console.log(ERROR_MESSAGE_DETAIL, error);
   }
 
-  console.log("Email Content: ", emailDetails);
+  const details = (emailDetails.data.payload.headers) ? emailDetails.data.payload.headers : [];
+
+  details.forEach(details => {
+    const { name, value } = details;
+
+    if (name == 'From') {
+      console.log(value);
+    }
+  })
+  console.log("--------------------------------------------")
 }
