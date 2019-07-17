@@ -92,23 +92,30 @@ function getAllEmails(pageToken = "") {
 
     if (results.data.nextPageToken) { 
       getAllEmails(results.data.nextPageToken); 
+    } else {
+      // Done parsing all emails print JSON 
+      console.log(senderDic)
+      console.log(Object.keys(senderDic).length)
     }
-  });
+  }); 
 }
 
+var senderDic = {};
 function getEmailDetails(error, emailDetails) {
-  if (error) {
-    return console.log(ERROR_MESSAGE_DETAIL, error);
-  }
+  if (error) { return console.log(ERROR_MESSAGE_DETAIL, error); }
 
   const details = (emailDetails.data.payload.headers) ? emailDetails.data.payload.headers : [];
 
+  var date = "";
+  var sender = "";
+
   details.forEach(details => {
     const { name, value } = details;
-
-    if (name == 'From') {
-      console.log(value);
-    }
+    if (name == 'From') { sender = value; }
+    if (name == 'Date') { date = value; }
   })
-  console.log("--------------------------------------------")
+
+  if (!(sender in senderDic)) {
+    senderDic[sender] = { "sender" : sender, "date" : date } ;
+  }
 }
